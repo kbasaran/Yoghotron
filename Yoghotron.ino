@@ -8,6 +8,7 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define SWITCHPIN 4
 #define FANPIN 6
 #define MOSFETPIN 10
+#define LEDPIN 13
 
 float Tset = 43;
 float T1 = 88.8;
@@ -46,7 +47,7 @@ void setup()
   pinMode(SWITCHPIN, INPUT);
   pinMode(MOSFETPIN, OUTPUT);
   pinMode(FANPIN, OUTPUT);
-  pinMode(13, OUTPUT);
+  pinMode(LEDPIN, OUTPUT);
   digitalWrite(FANPIN, HIGH);
   digitalWrite(SWITCHPIN, HIGH);
   lcd.begin(20, 4);              // initialize the lcd
@@ -155,7 +156,7 @@ void loop()
   //Temp regulation
   Ty = T1;
   float tempFromRef = Tset - Ty;
-  dutyCycle = tempFromRef * 150 + 15;
+  dutyCycle = tempFromRef * 200;
   if (dutyCycle > 99) dutyCycle = 100;
   if (dutyCycle < 1) dutyCycle = 0;
   if (dutyCycle > (counter) % 100) heaterOn = true;
@@ -167,14 +168,19 @@ void loop()
 
   //Write heater
   if (counter % 10 == 0) {
-    if (mode == 1 && heaterOn == true & allSafe == true) digitalWrite(MOSFETPIN, HIGH), digitalWrite(13, HIGH);
-    else digitalWrite(MOSFETPIN, LOW), digitalWrite(13, HIGH);
+    if (mode == 1 && heaterOn == true & allSafe == true) digitalWrite(MOSFETPIN, HIGH);
+    else digitalWrite(MOSFETPIN, LOW);
   }
 
   //Write fan
   if (counter % 10 == 0) {
     if (fanOn == true) digitalWrite(FANPIN, HIGH);
     else digitalWrite(FANPIN, LOW);
+
+    //LEDPIN Regulation
+    if (mode == 1) digitalWrite(LEDPIN, HIGH);
+    else digitalWrite(LEDPIN, LOW);
+
   }
 
   //Read controls
@@ -250,7 +256,7 @@ void loop()
     Serial.print("Cycle/Temp/Duty: " + String(Ty, 1));
     Serial.println(" / " + String(cycle) + " / " + String(dutyCycle));
     cycle++;
-    
+
     //Timer and finishing
     if (timeLeft > timePerCycle * 1.5) timeLeft = timeLeft - timePerCycle;
     else {
@@ -259,7 +265,7 @@ void loop()
       else mode = 3;
     }
   }
-  else cycle = 0;
+  if (mode == 0) cycle = 0;
   counter = (counter + 1) % 10000;
 }
 
