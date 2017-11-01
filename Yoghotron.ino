@@ -20,13 +20,14 @@ long cycle = 0;
 boolean heaterOn = false;
 boolean fanOn = true;
 float timeLeft = 60 * 12; //in minutes
-float timePerCycle = 1.159891; //in minutes
+float timePerCycle = 1.1539; //in minutes
 short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 ready
 long lastAction = 0;
 short screenSleep = 0;
 short dutyCycle = 0;
 byte present1 = 0;
 byte present2 = 0;
+float rampDown = 0.5;
 
 //joystick
 short jsx, jsy;
@@ -156,14 +157,14 @@ void loop()
   //Temp regulation
   Ty = T1;
   float tempFromRef = Tset - Ty;
-  dutyCycle = tempFromRef * 200;
+  dutyCycle = tempFromRef * 200 + 5;
   if (dutyCycle > 99) dutyCycle = 100;
   if (dutyCycle < 1) dutyCycle = 0;
   if (dutyCycle > (counter) % 100) heaterOn = true;
   else heaterOn = false;
 
   //Fan regulation
-  if (Ty > Tset + 0.5 || (mode == 2 && Ty > 30)) fanOn = true;
+  if (Ty > Tset + 1 || (mode == 2 && Ty > 30)) fanOn = true;
   else fanOn = false;
 
   //Write heater
@@ -248,7 +249,7 @@ void loop()
   //Print state variables 2
   lcd.setCursor ( 0, 3 );
   lcd.print(String(dutyCycle) + "%  ");
-  lcd.setCursor ( 5, 3 );
+  lcd.setCursor ( 6, 3 );
   lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle));
 
   // Increment counter and cycle
@@ -256,6 +257,9 @@ void loop()
     Serial.print("Cycle/Temp/Duty: " + String(Ty, 1));
     Serial.println(" / " + String(cycle) + " / " + String(dutyCycle));
     cycle++;
+    // Do the temp ramp down
+    Tset = Tset - timePerCycle / 60 * rampDown;
+    if (Tset < 30.1) Tset = 30;
 
     //Timer and finishing
     if (timeLeft > timePerCycle * 1.5) timeLeft = timeLeft - timePerCycle;
