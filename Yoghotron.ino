@@ -20,7 +20,7 @@ long cycle = 0;
 boolean heaterOn = false;
 boolean fanOn = true;
 float timeLeft = 60 * 12; //in minutes
-float timePerCycle = 1.1539; //in minutes
+float timePerCycle = 1.487113; //in minutes
 short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 ready
 long lastAction = 0;
 short screenSleep = 0;
@@ -68,11 +68,7 @@ void loop()
   jsy = (analogRead(A1) - 493) / 32;
   while (digitalRead(SWITCHPIN) == LOW) swPressed = true;
   if (abs(jsx + jsy + swPressed) > 0 && screenSleep != 0) lastAction = cycle, screenSleep--;
-  if (swPressed == true) {
-    if (mode > 1) mode = 0;
-    else mode++, mode = mode % 2;
-    swPressed = false;
-  }
+
 
   //Read  sensor 1------------------------------------------------------------------
   if (counter % (200) == 26) {
@@ -188,6 +184,11 @@ void loop()
   if (screenSleep == 0 && mode == 0) {
     timeLeft = timeLeft + jsx;
     Tset = Tset + (float)jsy / 150;
+  }
+  if (screenSleep == 0 && swPressed == true) {
+    if (mode > 1) mode = 0;
+    else mode++, mode = mode % 2;
+    swPressed = false;
   }
   if (Tset > 49.9) Tset = 50;
   if (Tset < 30.1) Tset = 30;
