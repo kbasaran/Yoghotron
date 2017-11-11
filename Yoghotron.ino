@@ -9,6 +9,9 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define FANPIN 6
 #define MOSFETPIN 10
 #define LEDPIN 13
+#define TEMPMIN 35
+#define TEMPMAX 50
+#define TEMPNOTSAFE 60
 
 float Tset = 43;
 float T1 = 88.8;
@@ -20,8 +23,8 @@ long cycle = 0;
 boolean heaterOn = false;
 boolean fanOn = true;
 float timeLeft = 60 * 12; //in minutes
-float timePerCycle = 1.487113; //in minutes
-short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 ready
+float timePerCycle = 1.175; //in minutes
+short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 finished
 long lastAction = 0;
 short screenSleep = 0;
 short dutyCycle = 0;
@@ -143,7 +146,7 @@ void loop()
 
 
   //All safe?
-  if (cycle > 0 && counter > 101 && (Ty > 59 || T2 > 39 || present1 != 1 || present2 != 1)) allSafe = false;
+  if (cycle > 0 && counter > 101 && (Ty > TEMPNOTSAFE || T2 > TEMPNOTSAFE - 15 || present1 != 1 || present2 != 1)) allSafe = false;
 
   // Are sensors measuring similar?
   lcd.setCursor ( 19 , 0 );
@@ -160,7 +163,7 @@ void loop()
   else heaterOn = false;
 
   //Fan regulation
-  if (Ty > Tset + 1 || (mode == 2 && Ty > 30)) fanOn = true;
+  if ((mode == 1 && Ty > Tset + 1) || mode == 2) fanOn = true;
   else fanOn = false;
 
   //Write heater
@@ -190,8 +193,8 @@ void loop()
     else mode++, mode = mode % 2;
     swPressed = false;
   }
-  if (Tset > 49.9) Tset = 50;
-  if (Tset < 30.1) Tset = 30;
+  if (Tset > TEMPMAX) Tset = TEMPMAX;
+  if (Tset < TEMPMIN) Tset = TEMPMIN;
   if (timeLeft > 60 * 24) timeLeft = 60 * 24;
   if (timeLeft < 1) timeLeft = 0;
 
@@ -254,19 +257,19 @@ void loop()
   lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle));
 
   // Increment counter and cycle
-  if (counter % 1000 == 999 && mode > 0 ) {
+  if (counter % 1000 == 999 && mode > 0 && mode < 3 ) {
     Serial.print("Cycle/Temp/Duty: " + String(Ty, 1));
     Serial.println(" / " + String(cycle) + " / " + String(dutyCycle));
     cycle++;
     // Do the temp ramp down
     Tset = Tset - timePerCycle / 60 * rampDown;
-    if (Tset < 30.1) Tset = 30;
+    if (Tset < TEMPMIN) Tset = TEMPMIN;
 
-    //Timer and finishing
+    //Countdown timer and mode cooling and finishing
     if (timeLeft > timePerCycle * 1.5) timeLeft = timeLeft - timePerCycle;
     else {
       timeLeft = 0;
-      if (Ty > 30) mode = 2;
+      if (Ty > TEMPMIN) mode = 2;
       else mode = 3;
     }
   }
