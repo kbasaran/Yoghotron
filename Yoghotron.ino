@@ -12,6 +12,7 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define TEMPMIN 35
 #define TEMPMAX 50
 #define TEMPNOTSAFE 60
+#define TWAIT 30
 
 float Tset = 43;
 float T1 = 88.8;
@@ -31,6 +32,7 @@ short dutyCycle = 0;
 byte present1 = 0;
 byte present2 = 0;
 float rampDown = 0.5;
+float tempFromRef;
 
 //joystick
 short jsx, jsy;
@@ -153,35 +155,44 @@ void loop()
   if (abs(T1 - T2) > 20) lcd.print("!");
   else lcd.print(" ");
 
-  //Temp regulation
+
+  //Calculate duty cycle - temp regulation
   Ty = T1;
-  float tempFromRef = Tset - Ty;
-  dutyCycle = tempFromRef * 200 + 5;
-  if (dutyCycle > 99) dutyCycle = 100;
-  if (dutyCycle < 1) dutyCycle = 0;
-  if (dutyCycle > (counter) % 100) heaterOn = true;
-  else heaterOn = false;
+  if (mode == 1) tempFromRef = Tset - Ty;
+  else tempFromRef = TWAIT - Ty;
+
+  if (mode < 2) {
+    dutyCycle = tempFromRef * 200 + 20;
+    if (dutyCycle > 99) dutyCycle = 100;
+    if (dutyCycle < 1) dutyCycle = 0;
+  }
+  else dutyCycle = 0;
+
 
   //Fan regulation
   if ((mode == 1 && Ty > Tset + 1) || mode == 2) fanOn = true;
   else fanOn = false;
 
+
   //Write heater
-  if (counter % 10 == 0) {
-    if (mode == 1 && heaterOn == true & allSafe == true) digitalWrite(MOSFETPIN, HIGH);
-    else digitalWrite(MOSFETPIN, LOW);
-  }
+  if (dutyCycle > (counter) % 100) heaterOn = true;
+  else heaterOn = false;
+  if (heaterOn == true & allSafe == true) digitalWrite(MOSFETPIN, HIGH);
+  else digitalWrite(MOSFETPIN, LOW);
+
 
   //Write fan
   if (counter % 10 == 0) {
     if (fanOn == true) digitalWrite(FANPIN, HIGH);
     else digitalWrite(FANPIN, LOW);
 
+
     //LEDPIN Regulation
     if (mode == 1) digitalWrite(LEDPIN, HIGH);
     else digitalWrite(LEDPIN, LOW);
 
   }
+
 
   //Read controls
   if (screenSleep == 0 && mode == 0) {
