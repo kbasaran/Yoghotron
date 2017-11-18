@@ -9,7 +9,7 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define FANPIN 6
 #define MOSFETPIN 10
 #define LEDPIN 13
-#define TEMPMIN 35
+#define TEMPMIN 30
 #define TEMPMAX 50
 #define TEMPNOTSAFE 60
 #define TWAIT 30
