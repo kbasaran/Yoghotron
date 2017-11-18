@@ -14,7 +14,7 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define TEMPNOTSAFE 60
 #define TWAIT 30
 
-float Tset = 43;
+float Tset = 45;
 float T1 = 88.8;
 float T2 = 88.8;
 float Ty = Tset;
@@ -265,7 +265,7 @@ void loop()
   lcd.setCursor ( 0, 3 );
   lcd.print(String(dutyCycle) + "%  ");
   lcd.setCursor ( 6, 3 );
-  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle));
+  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle) + "," + String(rampDown, 1));
 
   // Increment counter and cycle
   if (counter % 1000 == 999 && mode > 0 && mode < 3 ) {
