@@ -170,7 +170,7 @@ void loop()
 
 
   //Fan regulation
-  if ((mode == 1 && Ty > Tset + 1) || mode == 2) fanOn = true;
+  if ((mode < 2 && Ty > Tset + 1) || mode == 2) fanOn = true;
   else fanOn = false;
 
 
