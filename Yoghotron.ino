@@ -11,8 +11,8 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define LEDPIN 13
 #define TEMPMIN 30
 #define TEMPMAX 50
-#define TEMPNOTSAFE 60
-#define TWAIT 30
+#define TEMPNOTSAFE 70
+#define TWAIT 35
 
 float Tset = 45;
 float T1 = 88.8;
@@ -23,15 +23,15 @@ boolean allSafe = true;
 long cycle = 0;
 boolean heaterOn = false;
 boolean fanOn = true;
-float timeLeft = 60 * 12; //in minutes
+float timeLeft = 60 * 14; //in minutes
 float timePerCycle = 1.175; //in minutes
-short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 finished
+short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 finished, 4 not safe
 long lastAction = 0;
 short screenSleep = 0;
 short dutyCycle = 0;
 byte present1 = 0;
 byte present2 = 0;
-float rampDown = 0.5;
+float rampDown = 0.3;
 float tempFromRef;
 
 //joystick
@@ -148,7 +148,7 @@ void loop()
 
 
   //All safe?
-  if (cycle > 0 && counter > 101 && (Ty > TEMPNOTSAFE || T2 > TEMPNOTSAFE - 15 || present1 != 1 || present2 != 1)) allSafe = false;
+  if (cycle > 0 && counter > 101 && (Ty > TEMPNOTSAFE || T2 > TEMPNOTSAFE - 25 || present1 != 1 || present2 != 1)) allSafe = false;
 
   // Are sensors measuring similar?
   lcd.setCursor ( 19 , 0 );
@@ -162,7 +162,7 @@ void loop()
   else tempFromRef = TWAIT - Ty;
 
   if (mode < 2) {
-    dutyCycle = tempFromRef * 200 + 20;
+    dutyCycle = tempFromRef * 140 + 20;
     if (dutyCycle > 99) dutyCycle = 100;
     if (dutyCycle < 1) dutyCycle = 0;
   }
@@ -170,7 +170,7 @@ void loop()
 
 
   //Fan regulation
-  if ((mode < 2 && Ty > Tset + 1) || mode == 2) fanOn = true;
+  if ((mode < 2 && Ty > Tset + 1.5) || mode == 2 || mode == 4 || (mode == 1 && (cycle % 50 == 49))) fanOn = true;
   else fanOn = false;
 
 
@@ -215,6 +215,7 @@ void loop()
   short pointTimer = counter % 60;
   lcd.home ();
   if (allSafe == false) {
+    mode = 4;
     lcd.print ("   ---Not safe---  ");
     if (pointTimer % 10 < 5) lcd.backlight();
     else lcd.noBacklight();
@@ -265,7 +266,7 @@ void loop()
   lcd.setCursor ( 0, 3 );
   lcd.print(String(dutyCycle) + "%  ");
   lcd.setCursor ( 6, 3 );
-  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle) + "," + String(rampDown, 1));
+  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle) + "," + String(rampDown, 1) + "   ");
 
   // Increment counter and cycle
   if (counter % 1000 == 999 && mode > 0 && mode < 3 ) {
