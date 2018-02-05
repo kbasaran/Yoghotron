@@ -12,7 +12,7 @@ OneWire  ds(8);  // (a 4.7K resistor is necessary)
 #define TEMPMIN 30
 #define TEMPMAX 50
 #define TEMPNOTSAFE 70
-#define TWAIT 35
+#define TWAIT 40
 
 float Tset = 45;
 float T1 = 88.8;
@@ -32,7 +32,8 @@ short dutyCycle = 0;
 byte present1 = 0;
 byte present2 = 0;
 float rampDown = 0.3;
-float tempFromRef;
+float tempError;
+float cumErr = 0;
 
 //joystick
 short jsx, jsy;
@@ -151,18 +152,18 @@ void loop()
   if (cycle > 0 && counter > 101 && (Ty > TEMPNOTSAFE || T2 > TEMPNOTSAFE - 25 || present1 != 1 || present2 != 1)) allSafe = false;
 
   // Are sensors measuring similar?
-  lcd.setCursor ( 19 , 0 );
+  lcd.setCursor ( 19 , 2 );
   if (abs(T1 - T2) > 20) lcd.print("!");
   else lcd.print(" ");
 
 
   //Calculate duty cycle - temp regulation
   Ty = T1;
-  if (mode == 1) tempFromRef = Tset - Ty;
-  else tempFromRef = TWAIT - Ty;
+  if (mode == 1) tempError = Ty - Tset;
+  else tempError = Ty - TWAIT;
 
   if (mode < 2) {
-    dutyCycle = tempFromRef * 140 + 20;
+    dutyCycle = 20 - tempError * 200;
     if (dutyCycle > 99) dutyCycle = 100;
     if (dutyCycle < 1) dutyCycle = 0;
   }
@@ -170,7 +171,7 @@ void loop()
 
 
   //Fan regulation
-  if ((mode < 2 && Ty > Tset + 1.5) || mode == 2 || mode == 4 || (mode == 1 && (cycle % 50 == 49))) fanOn = true;
+  if ((mode < 2 && Ty > Tset + 1.5 && cycle % 3 == 2) || (mode < 2 && Ty > Tset + 3) || mode == 2 || mode == 4 || (mode == 1 && (cycle % 50 == 49))) fanOn = true;
   else fanOn = false;
 
 
@@ -223,27 +224,36 @@ void loop()
   else {
     if (mode < 2 && cycle - lastAction > 50) lcd.noBacklight(), screenSleep = 5;
     else lcd.backlight();
-    if (mode == 0) lcd.print ("Waiting orders...  ");
+    if (mode == 0){
+        lcd.print ("Waiting orders...   ");
+        lcd.setCursor (15, 3);
+        lcd.print("     ");
+    }
     if (mode == 1) {
       lcd.print ("Processing");
       lcd.setCursor ( 10, 0 );
+      if (pointTimer < 15)                    lcd.print ("      ");
+      if (pointTimer > 14 && pointTimer < 30) lcd.print (".     ");
+      if (pointTimer > 29 && pointTimer < 45) lcd.print ("..    ");
+      if (pointTimer > 44 && pointTimer < 60) lcd.print ("...   ");
+    }
+    if (mode == 2) {
+      lcd.print ("Cooling");
+      lcd.setCursor ( 7, 0 );
       if (pointTimer < 15)                    lcd.print ("         ");
       if (pointTimer > 14 && pointTimer < 30) lcd.print (".        ");
       if (pointTimer > 29 && pointTimer < 45) lcd.print ("..       ");
       if (pointTimer > 44 && pointTimer < 60) lcd.print ("...      ");
     }
-    if (mode == 2) {
-      lcd.print ("Cooling");
-      lcd.setCursor ( 7, 0 );
-      if (pointTimer < 15)                    lcd.print ("            ");
-      if (pointTimer > 14 && pointTimer < 30) lcd.print (".           ");
-      if (pointTimer > 29 && pointTimer < 45) lcd.print ("..          ");
-      if (pointTimer > 44 && pointTimer < 60) lcd.print ("...         ");
-    }
     if (mode == 3) {
-      lcd.print ("Yoghurt ready!     ");
+      lcd.print ("Yoghurt ready!  ");
       if (pointTimer % 30 < 15) lcd.backlight();
       else lcd.noBacklight();
+    }
+    if (mode > 0) {
+    lcd.setCursor (16 , 0);
+    if (cumErr < 99.95) lcd.print(String(cumErr, 1));
+    else lcd.print(String(cumErr, 0));
     }
   }
 
@@ -266,7 +276,7 @@ void loop()
   lcd.setCursor ( 0, 3 );
   lcd.print(String(dutyCycle) + "%  ");
   lcd.setCursor ( 6, 3 );
-  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(cycle) + "," + String(rampDown, 1) + "   ");
+  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(rampDown, 1) + "," + String(cycle));
 
   // Increment counter and cycle
   if (counter % 1000 == 999 && mode > 0 && mode < 3 ) {
@@ -277,6 +287,9 @@ void loop()
     Tset = Tset - timePerCycle / 60 * rampDown;
     if (Tset < TEMPMIN) Tset = TEMPMIN;
 
+    //Increment total error
+    cumErr = cumErr + abs(tempError) * timePerCycle / (float)60;
+
     //Countdown timer and mode cooling and finishing
     if (timeLeft > timePerCycle * 1.5) timeLeft = timeLeft - timePerCycle;
     else {
@@ -285,7 +298,7 @@ void loop()
       else mode = 3;
     }
   }
-  if (mode == 0) cycle = 0;
+  if (mode == 0) cycle = 0, cumErr = 0;
   counter = (counter + 1) % 10000;
 }
 
