@@ -2,19 +2,25 @@
 #include <LiquidCrystal_I2C.h>
 #include <OneWire.h>
 
-LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
-OneWire  ds(8);  // (a 4.7K resistor is necessary)
-
+#define TEMPPIN 11
 #define SWITCHPIN 4
 #define FANPIN 6
 #define MOSFETPIN 10
 #define LEDPIN 13
-#define TEMPMIN 30
-#define TEMPMAX 50
-#define TEMPNOTSAFE 70
-#define TWAIT 40
+#define TEMPMINSETTING 30
+#define TEMPMAXSETTING 50
+#define T2NOTSAFE 45
+#define T2STOPHEATING 40
+#define TWAITBOX 35
 
-float Tset = 45;
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
+OneWire  ds(TEMPPIN);  // (a 4.7K resistor is necessary)
+
+float timeLeft = 60 * 14; //in minutes
+float timePerCycle = 1.265774; //in minutes
+float Tset = 46;
+float rampDown = 0.3;
+
 float T1 = 88.8;
 float T2 = 88.8;
 float Ty = Tset;
@@ -23,15 +29,12 @@ boolean allSafe = true;
 long cycle = 0;
 boolean heaterOn = false;
 boolean fanOn = true;
-float timeLeft = 60 * 14; //in minutes
-float timePerCycle = 1.175; //in minutes
 short mode = 0; //0 waiting, 1 cooking, 2 cooling, 3 finished, 4 not safe
 long lastAction = 0;
 short screenSleep = 0;
 short dutyCycle = 0;
 byte present1 = 0;
 byte present2 = 0;
-float rampDown = 0.3;
 float tempError;
 float cumErr = 0;
 
@@ -41,8 +44,8 @@ boolean swPressed = false;
 
 
 //DS18B20
-byte addr1[8] = {40, 212, 1, 8, 0, 0, 128, 91};
-byte addr2[8] = {40, 255, 149, 174, 81, 22, 4, 102};
+byte addr1[8] = {40, 255, 131, 148, 112, 23, 3, 173}; //ROM = 28 D4 1 8 0 0 80 5B
+byte addr2[8] = {40, 255, 173, 103, 70, 22, 3, 197}; //ROM = 28 FF AD 67 46 16 3 C5
 byte data[12];
 byte i;
 
@@ -77,7 +80,7 @@ void loop()
 
 
   //Read  sensor 1------------------------------------------------------------------
-  if (counter % (200) == 26) {
+  if (counter % (100) == 51) {
 
     if (OneWire::crc8(addr1, 7) != addr1[7]) {
       Serial.println("CRC is not valid!");
@@ -87,7 +90,7 @@ void loop()
     ds.select(addr1);
     ds.write(0x44, 1);        // start conversion, with parasite power on at the end
   }
-  if (counter % (200) == 76) {
+  if (counter % (100) == 76) {
     present1 = ds.reset();
     ds.select(addr1);
     ds.write(0xBE);         // Read Scratchpad
@@ -113,7 +116,7 @@ void loop()
 
 
   //Read  sensor 2------------------------------------------------------------------
-  if (counter % (200) == 1) {
+  if (counter % (100) == 1) {
 
     if (OneWire::crc8(addr2, 7) != addr2[7]) {
       Serial.println("CRC is not valid!");
@@ -123,7 +126,7 @@ void loop()
     ds.select(addr2);
     ds.write(0x44, 1);        // start conversion, with parasite power on at the end
   }
-  if (counter % (200) == 51) {
+  if (counter % (100) == 26) {
     present2 = ds.reset();
     ds.select(addr2);
     ds.write(0xBE);         // Read Scratchpad
@@ -149,18 +152,12 @@ void loop()
 
 
   //All safe?
-  if (cycle > 0 && counter > 101 && (Ty > TEMPNOTSAFE || T2 > TEMPNOTSAFE - 25 || present1 != 1 || present2 != 1)) allSafe = false;
-
-  // Are sensors measuring similar?
-  lcd.setCursor ( 19 , 2 );
-  if (abs(T1 - T2) > 20) lcd.print("!");
-  else lcd.print(" ");
-
+  if (counter > 101 && (T2 > T2NOTSAFE || T1 < 15 || T2 < 15 || present1 != 1 || present2 != 1)) allSafe = false;
 
   //Calculate duty cycle - temp regulation
   Ty = T1;
   if (mode == 1) tempError = Ty - Tset;
-  else tempError = Ty - TWAIT;
+  else tempError = T2 - TWAITBOX;
 
   if (mode < 2) {
     dutyCycle = 20 - tempError * 200;
@@ -171,12 +168,12 @@ void loop()
 
 
   //Fan regulation
-  if ((mode < 2 && Ty > Tset + 1.5 && cycle % 3 == 2) || (mode < 2 && Ty > Tset + 3) || mode == 2 || mode == 4 || (mode == 1 && (cycle % 50 == 49))) fanOn = true;
+  if ((mode == 1 && Ty > Tset + 1.5 && cycle % 3 == 2) || (mode == 1 && Ty > Tset + 3) || mode == 2 || mode == 4 || (mode == 1 && (cycle % 50 == 49))) fanOn = true;
   else fanOn = false;
 
 
   //Write heater
-  if (dutyCycle > (counter) % 100) heaterOn = true;
+  if ((dutyCycle > (counter) % 100) && T2 < T2STOPHEATING) heaterOn = true;
   else heaterOn = false;
   if (heaterOn == true & allSafe == true) digitalWrite(MOSFETPIN, HIGH);
   else digitalWrite(MOSFETPIN, LOW);
@@ -205,8 +202,8 @@ void loop()
     else mode++, mode = mode % 2;
     swPressed = false;
   }
-  if (Tset > TEMPMAX) Tset = TEMPMAX;
-  if (Tset < TEMPMIN) Tset = TEMPMIN;
+  if (Tset > TEMPMAXSETTING) Tset = TEMPMAXSETTING;
+  if (Tset < TEMPMINSETTING) Tset = TEMPMINSETTING;
   if (timeLeft > 60 * 24) timeLeft = 60 * 24;
   if (timeLeft < 1) timeLeft = 0;
 
@@ -224,10 +221,10 @@ void loop()
   else {
     if (mode < 2 && cycle - lastAction > 50) lcd.noBacklight(), screenSleep = 5;
     else lcd.backlight();
-    if (mode == 0){
-        lcd.print ("Waiting orders...   ");
-        lcd.setCursor (15, 3);
-        lcd.print("     ");
+    if (mode == 0) {
+      lcd.print ("Waiting orders...   ");
+      lcd.setCursor (15, 3);
+      lcd.print("     ");
     }
     if (mode == 1) {
       lcd.print ("Processing");
@@ -251,11 +248,16 @@ void loop()
       else lcd.noBacklight();
     }
     if (mode > 0) {
-    lcd.setCursor (16 , 0);
-    if (cumErr < 99.95) lcd.print(String(cumErr, 1));
-    else lcd.print(String(cumErr, 0));
+      lcd.setCursor (16 , 0);
+      if (cumErr < 99.95) lcd.print(String(cumErr, 1));
+      else lcd.print(String(cumErr, 0));
     }
   }
+
+  // Is it getting too warm?
+  lcd.setCursor ( 19 , 2 );
+  if (T2 > T2STOPHEATING) lcd.print("!");
+  else lcd.print(" ");
 
   //Print time left
   lcd.setCursor ( 0, 1 );
@@ -279,26 +281,32 @@ void loop()
   lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(rampDown, 1) + "," + String(cycle));
 
   // Increment counter and cycle
-  if (counter % 1000 == 999 && mode > 0 && mode < 3 ) {
+  if (counter % 1000 == 999) {
     Serial.print("Cycle/Temp/Duty: " + String(Ty, 1));
     Serial.println(" / " + String(cycle) + " / " + String(dutyCycle));
-    cycle++;
-    // Do the temp ramp down
-    Tset = Tset - timePerCycle / 60 * rampDown;
-    if (Tset < TEMPMIN) Tset = TEMPMIN;
+    if (mode == 1) {
+      cycle++;
+      // Do the temp ramp down
+      Tset = Tset - timePerCycle / 60 * rampDown;
+      if (Tset < TEMPMINSETTING) Tset = TEMPMINSETTING;
 
-    //Increment total error
-    cumErr = cumErr + abs(tempError) * timePerCycle / (float)60;
+      //Increment total error
+      cumErr = cumErr + abs(tempError) * timePerCycle / (float)60;
 
-    //Countdown timer and mode cooling and finishing
-    if (timeLeft > timePerCycle * 1.5) timeLeft = timeLeft - timePerCycle;
-    else {
-      timeLeft = 0;
-      if (Ty > TEMPMIN) mode = 2;
-      else mode = 3;
+      //Decrement time
+      timeLeft = timeLeft - timePerCycle;
     }
+    //Cooling and finishing
+    if (timeLeft < timePerCycle * 1.5 && mode == 1) {
+      timeLeft = 0;
+      mode = 2;
+    }
+    if (Ty < TEMPMINSETTING && mode == 2) mode = 3;
   }
-  if (mode == 0) cycle = 0, cumErr = 0;
+  if (mode == 0) {
+    cycle = 0;
+    cumErr = 0;
+  }
   counter = (counter + 1) % 10000;
 }
 
