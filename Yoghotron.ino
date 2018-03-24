@@ -11,14 +11,14 @@
 #define TEMPMAXSETTING 50
 #define T2NOTSAFE 45
 #define T2STOPHEATING 40
-#define TWAITBOX 35
+#define TWAITBOX 33
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
 OneWire  ds(TEMPPIN);  // (a 4.7K resistor is necessary)
 
-float timeLeft = 60 * 14; //in minutes
+float timeLeft = 60 * 12; //in minutes
 float timePerCycle = 1.265774; //in minutes
-float Tset = 46;
+float Tset = 45;
 float rampDown = 0.3;
 
 float T1 = 88.8;
@@ -152,7 +152,7 @@ void loop()
 
 
   //All safe?
-  if (counter > 101 && (T2 > T2NOTSAFE || T1 < 15 || T2 < 15 || present1 != 1 || present2 != 1)) allSafe = false;
+  if (counter > 101 && (T2 > T2NOTSAFE || T1 < 4 || T2 < 4 || present1 != 1 || present2 != 1)) allSafe = false;
 
   //Calculate duty cycle - temp regulation
   Ty = T1;
