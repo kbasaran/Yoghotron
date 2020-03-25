@@ -18,8 +18,8 @@ OneWire  ds(TEMPPIN);  // (a 4.7K resistor is necessary)
 
 float timeLeft = 60 * 12; //in minutes
 float timePerCycle = 1.265774; //in minutes
-float Tset = 45;
-float rampDown = 0.3;
+float Tset = 46;
+float rampDown = 0.2;
 
 float T1 = 88.8;
 float T2 = 88.8;
@@ -44,7 +44,7 @@ boolean swPressed = false;
 
 
 //DS18B20
-byte addr1[8] = {40, 255, 131, 148, 112, 23, 3, 173}; //ROM = 28 D4 1 8 0 0 80 5B
+byte addr1[8] = {40, 255, 56, 11, 96, 23, 3, 163}; //ROM = ......... 3 A3
 byte addr2[8] = {40, 255, 173, 103, 70, 22, 3, 197}; //ROM = 28 FF AD 67 46 16 3 C5
 byte data[12];
 byte i;
@@ -62,11 +62,11 @@ void setup()
   digitalWrite(SWITCHPIN, HIGH);
   lcd.begin(20, 4);              // initialize the lcd
   lcd.home();
-  lcd.setCursor ( 3, 1 );
-  lcd.print ("The Yoghotron");
+  lcd.setCursor ( 0, 1 );
+  lcd.print (" ~~The Yoghotron~~  ");
   lcd.setCursor ( 6, 3 );
   lcd.print ("S/N:0001");
-  delay(5000);
+  delay(3000);
   lcd.clear();
 }
 
@@ -166,7 +166,6 @@ void loop()
   }
   else dutyCycle = 0;
 
-
   //Fan regulation
   if ((mode == 1 && Ty > Tset + 1.5 && cycle % 3 == 2) || (mode == 1 && Ty > Tset + 3) || mode == 2 || mode == 4 || (mode == 1 && (cycle % 50 == 49))) fanOn = true;
   else fanOn = false;
@@ -214,9 +213,12 @@ void loop()
   lcd.home ();
   if (allSafe == false) {
     mode = 4;
-    lcd.print ("   ---Not safe---  ");
+    lcd.print("                    ");
     if (pointTimer % 10 < 5) lcd.backlight();
     else lcd.noBacklight();
+    lcd.setCursor ( 0, 1 );
+    lcd.print ("   ---Not safe---   ");
+    update_line_2_3();
   }
   else {
     if (mode < 2 && cycle - lastAction > 50) lcd.noBacklight(), screenSleep = 5;
@@ -252,33 +254,26 @@ void loop()
       if (cumErr < 99.95) lcd.print(String(cumErr, 1));
       else lcd.print(String(cumErr, 0));
     }
+
+    // Is it getting too warm?
+    lcd.setCursor ( 19 , 2 );
+    if (T2 > T2STOPHEATING) lcd.print("!");
+    else lcd.print(" ");
+
+     //Print time left
+    lcd.setCursor ( 0, 1 );
+    if (mode == 0) lcd.print("Time set:"), lcd.setCursor ( 9, 1 );
+    else lcd.print("Time left:"), lcd.setCursor ( 10, 1 );
+    if (timeLeft < 60 * 10) lcd.print(" 0" + String(int(timeLeft) / 60) + "h");
+    else lcd.print(" " + String(int(timeLeft) / 60) + "h");
+    if (mode == 0) lcd.setCursor ( 13, 1 );
+    else lcd.setCursor ( 14, 1 );
+    if (int(timeLeft) % 60 < 10) lcd.print("0" + String(int(timeLeft) % 60) + "m ");
+    else lcd.print(String(int(timeLeft) % 60) + "m");
+  
   }
 
-  // Is it getting too warm?
-  lcd.setCursor ( 19 , 2 );
-  if (T2 > T2STOPHEATING) lcd.print("!");
-  else lcd.print(" ");
-
-  //Print time left
-  lcd.setCursor ( 0, 1 );
-  if (mode == 0) lcd.print("Time set:"), lcd.setCursor ( 9, 1 );
-  else lcd.print("Time left:"), lcd.setCursor ( 10, 1 );
-  if (timeLeft < 60 * 10) lcd.print(" 0" + String(int(timeLeft) / 60) + "h");
-  else lcd.print(" " + String(int(timeLeft) / 60) + "h");
-  if (mode == 0) lcd.setCursor ( 13, 1 );
-  else lcd.setCursor ( 14, 1 );
-  if (int(timeLeft) % 60 < 10) lcd.print("0" + String(int(timeLeft) % 60) + "m ");
-  else lcd.print(String(int(timeLeft) % 60) + "m");
-
-  //Print state variables
-  lcd.setCursor ( 0, 2 );
-  lcd.print(String(Tset, 1) + "," + String(Ty, 1) + "," + String(T2, 1));
-
-  //Print state variables 2
-  lcd.setCursor ( 0, 3 );
-  lcd.print(String(dutyCycle) + "%  ");
-  lcd.setCursor ( 6, 3 );
-  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(rampDown, 1) + "," + String(cycle));
+  update_line_2_3();
 
   // Increment counter and cycle
   if (counter % 1000 == 999) {
@@ -310,3 +305,16 @@ void loop()
   counter = (counter + 1) % 10000;
 }
 
+void update_line_2_3(){
+  
+  //Print state variables
+  lcd.setCursor ( 0, 2 );
+  lcd.print(String(Tset, 1) + "," + String(Ty, 1) + "," + String(T2, 1) + "    ");
+
+  //line 2
+  lcd.setCursor ( 0, 3 );
+  lcd.print(String(dutyCycle) + "%  ");
+  lcd.setCursor ( 6, 3 );
+  lcd.print(String(digitalRead(MOSFETPIN)) + "," + String(digitalRead(FANPIN)) + "," + String(rampDown, 1) + "," + String(cycle));
+
+}
